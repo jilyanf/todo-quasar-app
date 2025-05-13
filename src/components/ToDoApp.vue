@@ -1,118 +1,106 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header elevated class="bg-primary text-white">
-      <q-toolbar>
-        <q-toolbar-title>
-          Quasar Todo App
-        </q-toolbar-title>
-      </q-toolbar>
-    </q-header>
+  <div class="todo-app q-pa-md">
+    <div class="row q-mb-md">
+      <div class="col-8">
+        <q-input
+          v-model="newTask"
+          label="Task Name"
+          @keyup.enter="addTask"
+          class="q-mr-sm"
+          outlined
+        />
+      </div>
+      <div class="col-4">
+        <q-btn
+          color="primary"
+          label="Submit"
+          @click="addTask"
+          :disable="!newTask"
+          class="q-ml-sm"
+        />
+      </div>
+    </div>
 
-    <q-page-container>
-      <q-page class="q-pa-md">
-        <div class="row q-mb-md">
-          <div class="col-8">
-            <q-input
-              v-model="newTask"
-              label="Task Name"
-              @keyup.enter="addTask"
-              class="q-mr-sm"
-              outlined
-            />
+    <div class="q-mt-lg">
+      <q-card v-for="todo in todos" :key="todo.id" class="q-mb-md">
+        <q-card-section class="row items-center">
+          <div class="col-6">
+            <div v-if="editingId === todo.id">
+              <q-input v-model="editingText" outlined dense />
+            </div>
+            <div v-else class="text-h6" :class="{ 'text-strike': todo.completed }">
+              {{ todo.title }}
+            </div>
           </div>
-          <div class="col-4">
+          <div class="col-2">
+            <q-checkbox v-model="todo.completed" @update:model-value="updateTaskStatus(todo)" />
+          </div>
+          <div class="col-4 row justify-end">
             <q-btn
+              v-if="editingId === todo.id"
+              flat
+              color="positive"
+              icon="save"
+              @click="saveEdit(todo)"
+              class="q-mr-xs"
+            />
+            <q-btn
+              v-else
+              flat
               color="primary"
-              label="Submit"
-              @click="addTask"
-              :disable="!newTask"
-              class="q-ml-sm"
+              icon="edit"
+              @click="startEdit(todo)"
+              class="q-mr-xs"
+            />
+            <q-btn
+              flat
+              color="negative"
+              icon="delete"
+              @click="deleteTask(todo.id)"
             />
           </div>
-        </div>
+        </q-card-section>
+      </q-card>
 
-        <div class="q-mt-lg">
-          <q-card v-for="todo in todos" :key="todo.id" class="q-mb-md">
-            <q-card-section class="row items-center">
-              <div class="col-6">
-                <div v-if="editingId === todo.id">
-                  <q-input v-model="editingText" outlined dense />
-                </div>
-                <div v-else class="text-h6" :class="{ 'text-strike': todo.completed }">
-                  {{ todo.title }}
-                </div>
-              </div>
-              <div class="col-2">
-                <q-checkbox v-model="todo.completed" @update:model-value="updateTaskStatus(todo)" />
-              </div>
-              <div class="col-4 row justify-end">
-                <q-btn
-                  v-if="editingId === todo.id"
-                  flat
-                  color="positive"
-                  icon="save"
-                  @click="saveEdit(todo)"
-                  class="q-mr-xs"
-                />
-                <q-btn
-                  v-else
-                  flat
-                  color="primary"
-                  icon="edit"
-                  @click="startEdit(todo)"
-                  class="q-mr-xs"
-                />
-                <q-btn
-                  flat
-                  color="negative"
-                  icon="delete"
-                  @click="deleteTask(todo.id)"
-                />
-              </div>
-            </q-card-section>
-          </q-card>
+      <div v-if="loading" class="text-center q-pa-md">
+        <q-spinner color="primary" size="3em" />
+        <div class="q-mt-sm">Loading tasks...</div>
+      </div>
 
-          <div v-if="loading" class="text-center q-pa-md">
-            <q-spinner color="primary" size="3em" />
-            <div class="q-mt-sm">Loading tasks...</div>
-          </div>
+      <div v-if="!loading && todos.length === 0" class="text-center q-pa-md">
+        <q-icon name="task_alt" size="3em" color="grey-7" />
+        <div class="text-h6 q-mt-sm">No tasks found</div>
+        <div class="text-grey">Add a new task to get started</div>
+      </div>
+    </div>
 
-          <div v-if="!loading && todos.length === 0" class="text-center q-pa-md">
-            <q-icon name="task_alt" size="3em" color="grey-7" />
-            <div class="text-h6 q-mt-sm">No tasks found</div>
-            <div class="text-grey">Add a new task to get started</div>
-          </div>
-        </div>
+    <q-dialog v-model="confirmDelete">
+      <q-card>
+        <q-card-section class="row items-center">
+          <q-avatar icon="warning" color="negative" text-color="white" />
+          <span class="q-ml-sm">Are you sure you want to delete this task?</span>
+        </q-card-section>
 
-        <q-dialog v-model="confirmDelete">
-          <q-card>
-            <q-card-section class="row items-center">
-              <q-avatar icon="warning" color="negative" text-color="white" />
-              <span class="q-ml-sm">Are you sure you want to delete this task?</span>
-            </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" color="primary" v-close-popup />
+          <q-btn flat label="Delete" color="negative" @click="confirmDeleteTask" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
-            <q-card-actions align="right">
-              <q-btn flat label="Cancel" color="primary" v-close-popup />
-              <q-btn flat label="Delete" color="negative" @click="confirmDeleteTask" v-close-popup />
-            </q-card-actions>
-          </q-card>
-        </q-dialog>
+    <q-dialog v-model="showNotification">
+      <q-card>
+        <q-card-section class="row items-center">
+          <q-avatar :icon="notificationIcon" :color="notificationColor" text-color="white" />
+          <span class="q-ml-sm">{{ notificationMessage }}</span>
+        </q-card-section>
 
-        <q-dialog v-model="showNotification">
-          <q-card>
-            <q-card-section class="row items-center">
-              <q-avatar :icon="notificationIcon" :color="notificationColor" text-color="white" />
-              <span class="q-ml-sm">{{ notificationMessage }}</span>
-            </q-card-section>
-
-            <q-card-actions align="right">
-              <q-btn flat label="OK" color="primary" v-close-popup />
-            </q-card-actions>
-          </q-card>
-        </q-dialog>
-      </q-page>
-    </q-page-container>
-  </q-layout>
+        <q-card-actions align="right">
+          <q-btn flat label="OK" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+  </div>
 </template>
 
 <script>

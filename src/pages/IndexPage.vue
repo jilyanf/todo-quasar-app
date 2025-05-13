@@ -1,13 +1,18 @@
 <template>
   <q-page class="flex flex-center">
-    <img
-      alt="Quasar logo"
-      src="~assets/quasar-logo-vertical.svg"
-      style="width: 200px; height: 200px"
-    >
+    <todo-app />
   </q-page>
 </template>
 
-<script setup>
-//
+<script>
+import { defineComponent } from 'vue'
+import TodoApp from '../components/TodoApp.vue'
+
+export default defineComponent({
+  name: 'IndexPage',
+
+  components: {
+    TodoApp
+  }
+})
 </script>
