@@ -83,7 +83,7 @@
     <div class="q-mt-lg">
       <transition-group name="list" tag="div">
         <q-card
-          v-for="todo in todos"
+          v-for="todo in sortedTodos"
           :key="todo.id"
           class="q-mb-sm shadow-2 task-card"
           :class="{
@@ -240,6 +240,14 @@ export default defineComponent({
       retryOperation,
     } = useTodo()
 
+    // Computed property to sort todos - incomplete tasks first, then completed ones
+    const sortedTodos = computed(() => {
+      return [...todos.value].sort((a, b) => {
+        if (a.completed === b.completed) return 0;
+        return a.completed ? 1 : -1; // 1 means a comes after b, -1 means a comes before b
+      });
+    });
+
     // Computed property for the delete dialog visibility
     const showDeleteDialog = computed(() => deleteTaskId.value !== null)
 
@@ -270,6 +278,7 @@ export default defineComponent({
 
     return {
       todos,
+      sortedTodos,
       newTask,
       loading,
       error,
@@ -298,6 +307,7 @@ export default defineComponent({
 }
 .input-container {
   margin-top: auto;
+  margin-bottom: 2.5rem;
   padding-bottom: 0;
 }
 .input {
@@ -311,12 +321,30 @@ export default defineComponent({
   border-left: 4px solid transparent;
   transition: all 0.3s ease;
   border-radius: 8px;
+  position: relative;
+  overflow: hidden;
 }
 .task-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+  background-color: rgba(0, 0, 0, 0.02);
 }
-
+.task-card:hover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
 .editing-item {
   background-color: #f8f9fa;
   border-left-color: var(--q-primary) !important;
@@ -324,6 +352,12 @@ export default defineComponent({
 .text-strike {
   text-decoration: line-through;
   color: #9e9e9e;
+}
+.border-left-green {
+  border-left-color: #4caf50 !important;
+}
+.border-left-primary {
+  border-left-color: var(--q-primary) !important;
 }
 
 </style>
