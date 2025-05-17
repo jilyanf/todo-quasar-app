@@ -1,5 +1,11 @@
 <template>
   <div class="todo-app q-pa-md">
+    <!-- Header -->
+    <div class="text-h3 text-weight-bold text-primary q-mb-xl text-center">
+      🎯 TaskFlow
+      <q-icon name="rocket_launch" color="secondary" class="q-ml-sm" />
+    </div>
+
     <!-- Task Input Form -->
     <div class="row q-col-gutter-sm q-mb-md items-center input-container">
       <div class="col-12 col-sm-9">
@@ -12,120 +18,185 @@
           :disable="loading.create"
           :error="!!error"
           :error-message="error?.message"
-          class="input"
-        />
+          class="shadow-3 input"
+        >
+          <template v-slot:prepend>
+            <q-icon name="edit_note" color="primary" />
+          </template>
+        </q-input>
       </div>
       <div class="col-12 col-sm-3 flex justify-end items-end btn-container">
         <q-btn
-          color="primary"
-          label="Submit"
+          color="secondary"
+          label="Add Task"
           @click="addTask"
           :loading="loading.create"
           :disable="!newTask || loading.create"
-          class="full-width button"
+          class="full-width shadow-3 button"
           unelevated
+          icon="add"
+          size="md"
         />
       </div>
     </div>
 
-    <!-- Global Loading Indicator -->
-    <div v-if="loading.fetch" class="text-center q-pa-md">
-      <q-spinner color="primary" size="3em" />
-      <div class="q-mt-sm">Loading tasks...</div>
-    </div>
+    <!-- Loading State -->
+    <template v-if="loading.fetch">
+      <div class="text-center q-pa-md">
+        <q-spinner-hourglass
+          color="primary"
+          size="3em"
+          class="q-mb-md"
+        />
+        <div class="text-h6 text-grey-7">Loading tasks...</div>
+      </div>
+    </template>
 
     <!-- Error State -->
-    <div v-else-if="error && !todos.length" class="text-center q-pa-md">
-      <q-icon name="error" size="3em" color="negative" />
-      <div class="text-h6 q-mt-sm">Failed to load tasks</div>
-      <div class="text-grey q-mb-md">{{ error.message }}</div>
-      <q-btn color="primary" label="Retry" @click="retryOperation('fetch')" />
-    </div>
+    <template v-else-if="error && !todos.length">
+      <div class="text-center q-pa-xl">
+        <q-icon name="sentiment_dissatisfied" size="xl" color="negative" />
+        <div class="text-h5 q-mt-md text-weight-medium">
+          Oops! Something went wrong
+        </div>
+        <div class="text-grey-7 q-mt-sm q-mb-lg">{{ error.message }}</div>
+        <q-btn
+          color="primary"
+          label="Try Again"
+          @click="retryOperation('fetch')"
+          icon="refresh"
+          unelevated
+        />
+      </div>
+    </template>
 
     <!-- No Tasks State -->
-    <div v-else-if="!loading.fetch && todos.length === 0" class="text-center q-pa-md">
-      <q-icon name="task_alt" size="3em" color="grey-7" />
-      <div class="text-h6 q-mt-sm">No tasks found</div>
-      <div class="text-grey">Add a new task to get started</div>
-    </div>
+    <template v-else-if="!loading.fetch && todos.length === 0">
+      <div class="text-center q-pa-xl">
+        <q-icon name="task_alt" size="xl" color="grey-6" class="q-mb-md" />
+        <div class="text-h5 text-weight-medium text-grey-8">All caught up! 🎉</div>
+        <div class="text-grey-7 q-mt-sm">Start by adding your first task</div>
+      </div>
+    </template>
 
     <!-- Task List -->
     <div class="q-mt-lg">
-      <q-card v-for="todo in todos" :key="todo.id" class="q-mb-md">
-        <q-card-section class="row items-center q-col-gutter-sm">
-          <!-- Task Checkbox -->
-          <div class="col-2 col-sm-1 flex items-center">
-            <q-checkbox
-              v-model="todo.completed"
-              @update:model-value="updateTaskStatus(todo)"
-              :disable="loading.update"
-            />
-          </div>
-
-          <!-- Task Title -->
-          <div class="col-10 col-sm-8 flex items-center">
-            <div v-if="editingId === todo.id">
-              <q-input
-              v-model="editingText"
-              outlined
-              dense
-              :loading="loading.update"
-              :disable="loading.update"
-              @keyup.enter="saveEdit(todo)"
-            />
+      <transition-group name="list" tag="div">
+        <q-card
+          v-for="todo in todos"
+          :key="todo.id"
+          class="q-mb-sm shadow-2 task-card"
+          :class="{
+            'bg-green-1': todo.completed,
+            'border-left-primary': !todo.completed,
+            'border-left-green': todo.completed,
+            'editing-item': editingId === todo.id
+          }"
+        >
+          <q-card-section class="row items-center q-col-gutter-md q-py-md">
+            <!-- Checkbox -->
+            <div class="col-auto">
+              <q-checkbox
+                v-model="todo.completed"
+                @update:model-value="updateTaskStatus(todo)"
+                :disable="loading.update"
+                size="lg"
+                color="primary"
+                checked-icon="task_alt"
+              />
             </div>
-            <div v-else class="text-h6" :class="{ 'text-strike': todo.completed }">
-              {{ todo.title }}
-            </div>
-          </div>
 
-          <!-- Task Actions -->
-          <div class="col-12 col-sm-3 row justify-end q-gutter-sm q-mt-sm q-mt-sm-none items-center">
-            <q-btn
-              v-if="editingId === todo.id"
-              flat
-              color="positive"
-              icon="save"
-              @click="saveEdit(todo)"
-              :loading="loading.update"
-              :disable="loading.update"
-            />
-            <q-btn
-              v-else
-              flat
-              color="primary"
-              icon="edit"
-              @click="startEdit(todo)"
-              :disable="loading.update"
-            />
-            <q-btn
-              flat
-              color="negative"
-              icon="delete"
-              @click="deleteTaskId = (todo.id)"
-              :loading="loading.delete && deleteTaskId === todo.id"
-              :disable="loading.delete"
-            />
-          </div>
-        </q-card-section>
-      </q-card>
+            <!-- Task Content -->
+            <div class="col-grow">
+              <div v-if="editingId === todo.id" class="edit-input">
+                <q-input
+                  v-model="editingText"
+                  outlined
+                  dense
+                  autofocus
+                  :loading="loading.update"
+                  :disable="loading.update"
+                  @keyup.enter="saveEdit(todo)"
+                  class="shadow-1"
+                />
+              </div>
+              <div
+                v-else
+                class="text-h6 task-content"
+                :class="{
+                  'text-strike': todo.completed,
+                  'text-grey-6': todo.completed
+                }"
+              >
+                {{ todo.title }}
+                <q-chip
+                  v-if="todo.category"
+                  :color="todo.completed ? 'grey-4' : 'primary'"
+                  text-color="white"
+                  size="sm"
+                  class="q-ml-sm"
+                >
+                  {{ todo.category }}
+                </q-chip>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="col-auto row q-gutter-xs">
+              <q-btn
+                v-if="editingId === todo.id"
+                flat
+                round
+                color="positive"
+                icon="check"
+                @click="saveEdit(todo)"
+                :loading="loading.update"
+                size="md"
+              />
+              <q-btn
+                v-else
+                flat
+                round
+                color="primary"
+                icon="edit"
+                @click="startEdit(todo)"
+                :disable="loading.update"
+                size="md"
+              />
+              <q-btn
+                flat
+                round
+                color="negative"
+                icon="delete"
+                @click="deleteTaskId = todo.id"
+                :loading="loading.delete && deleteTaskId === todo.id"
+                size="md"
+              />
+            </div>
+          </q-card-section>
+        </q-card>
+      </transition-group>
     </div>
 
     <!-- Delete Confirmation Dialog -->
-    <q-dialog v-model="showDeleteDialog">
+    <q-dialog v-model="showDeleteDialog" persistent>
       <q-card>
         <q-card-section class="row items-center">
-          <q-avatar icon="warning" color="negative" text-color="white" />
-          <span class="q-ml-sm">Are you sure you want to delete this task?</span>
+          <q-avatar icon="warning" color="negative" text-color="white" size="lg" />
+          <span class="text-h6 q-ml-md text-weight-medium">Confirm Delete</span>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none">
+          Are you sure you want to delete this task? This action cannot be undone.
         </q-card-section>
 
         <q-card-actions align="right">
           <q-btn
             flat
             label="Cancel"
-            color="primary"
+            color="grey-7"
             @click="cancelDelete"
-            :disable="loading.delete"
+            v-close-popup
           />
           <q-btn
             flat
@@ -133,14 +204,12 @@
             color="negative"
             @click="confirmDeleteTodo"
             :loading="loading.delete"
-            :disable="loading.delete"
+            icon="delete_forever"
+            unelevated
           />
         </q-card-actions>
       </q-card>
     </q-dialog>
-
-    <!-- Notifications -->
-    <q-notifications position="bottom-right" />
   </div>
 </template>
 
@@ -223,9 +292,9 @@ export default defineComponent({
 
 <style scoped>
 .todo-app {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 2rem 1rem;
 }
 .input-container {
   margin-top: auto;
@@ -238,8 +307,23 @@ export default defineComponent({
   padding-top: 15px;
   padding-bottom: 15px;
 }
+.task-card {
+  border-left: 4px solid transparent;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+}
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+
+.editing-item {
+  background-color: #f8f9fa;
+  border-left-color: var(--q-primary) !important;
+}
 .text-strike {
   text-decoration: line-through;
   color: #9e9e9e;
 }
+
 </style>
