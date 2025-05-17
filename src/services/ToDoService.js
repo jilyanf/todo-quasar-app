@@ -1,9 +1,36 @@
-// TodoService.js
-// This service handles all API interactions with the JSONPlaceholder API
-
+// Handles all API interactions with the JSONPlaceholder API
 import axios from 'axios'
 
-const API_URL = 'https://jsonplaceholder.typicode.com/todos'
+
+// Axios instance with default settings
+const apiClient = axios.create({
+  baseURL: 'https://jsonplaceholder.typicode.com',
+  timeout: 10000, // Timeout after 10 seconds
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+})
+
+// Error handling interceptor
+apiClient.interceptors.response.use(
+  response => response,
+  error => {
+    // Handle errors globally
+    console.error('API Error:', error.response || error.message || error)
+
+    // Create a standardized error object
+    const errorData = {
+      status: error.response? error.response.status : 500,
+      message: error.message || 'An unknown error occurred',
+      timestamp: new Date().toISOString(),
+      endpoint: error.config?.url || 'unknown',
+    }
+
+    // Reject promise with standardized error object
+    return Promise.reject(errorData)
+  }
+)
 
 export default {
   /**
@@ -12,7 +39,10 @@ export default {
    * @returns {Promise} - Promise with todos data
    */
   getTodos(limit = 10) {
-    return axios.get(`${API_URL}?_limit=${limit}`)
+    return apiClient.get(`/todos?_limit=${limit}`)
+    .then(response => {
+      return response.data
+    })
   },
 
   /**
@@ -21,11 +51,11 @@ export default {
    * @returns {Promise} - Promise with created todo data
    */
   createTodo(todo) {
-    return axios.post(API_URL, {
+    return apiClient.post('/todos', {
       title: todo.title,
       completed: todo.completed || false,
       userId: todo.userId || 1
-    })
+    }).then(response => response.data)
   },
 
   /**
@@ -34,7 +64,21 @@ export default {
    * @returns {Promise} - Promise with updated todo data
    */
   updateTodo(todo) {
-    return axios.put(`${API_URL}/${todo.id}`, todo)
+    return apiClient.put(`/todos/${todo.id}`, todo)
+    .then(response => {
+      return response.data
+    })
+  },
+
+  /**
+   * Update the completion status of a todo
+   * @param {Object} todo - Todo object with id and completed status
+   * @returns {Promise} - Promise with updated todo data
+   */
+  updateTodoStatus(todo) {
+    return apiClient.patch(`/todos/${todo.id}`, {
+      completed: todo.completed
+    }).then(response => response.data)
   },
 
   /**
@@ -43,6 +87,9 @@ export default {
    * @returns {Promise} - Promise with response data
    */
   deleteTodo(id) {
-    return axios.delete(`${API_URL}/${id}`)
-  }
+    return apiClient.delete(`/todos/${id}`)
+    .then(response => {
+      return response.data
+    })
+  },
 }

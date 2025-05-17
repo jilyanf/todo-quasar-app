@@ -6,7 +6,7 @@
 
 <script>
 import { defineComponent } from 'vue'
-import TodoApp from '../components/TodoApp.vue'
+import TodoApp from '../components/ToDoApp.vue'
 
 export default defineComponent({
   name: 'IndexPage',

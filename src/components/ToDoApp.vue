@@ -1,48 +1,94 @@
 <template>
   <div class="todo-app q-pa-md">
-    <div class="row q-mb-md">
-      <div class="col-8">
+    <!-- Task Input Form -->
+    <div class="row q-col-gutter-sm q-mb-md items-center input-container">
+      <div class="col-12 col-sm-9">
         <q-input
           v-model="newTask"
           label="Task Name"
           @keyup.enter="addTask"
-          class="q-mr-sm"
           outlined
+          :loading="loading.create"
+          :disable="loading.create"
+          :error="!!error"
+          :error-message="error?.message"
+          class="input"
         />
       </div>
-      <div class="col-4">
+      <div class="col-12 col-sm-3 flex justify-end items-end btn-container">
         <q-btn
           color="primary"
           label="Submit"
           @click="addTask"
-          :disable="!newTask"
-          class="q-ml-sm"
+          :loading="loading.create"
+          :disable="!newTask || loading.create"
+          class="full-width button"
+          unelevated
         />
       </div>
     </div>
 
+    <!-- Global Loading Indicator -->
+    <div v-if="loading.fetch" class="text-center q-pa-md">
+      <q-spinner color="primary" size="3em" />
+      <div class="q-mt-sm">Loading tasks...</div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error && !todos.length" class="text-center q-pa-md">
+      <q-icon name="error" size="3em" color="negative" />
+      <div class="text-h6 q-mt-sm">Failed to load tasks</div>
+      <div class="text-grey q-mb-md">{{ error.message }}</div>
+      <q-btn color="primary" label="Retry" @click="retryOperation('fetch')" />
+    </div>
+
+    <!-- No Tasks State -->
+    <div v-else-if="!loading.fetch && todos.length === 0" class="text-center q-pa-md">
+      <q-icon name="task_alt" size="3em" color="grey-7" />
+      <div class="text-h6 q-mt-sm">No tasks found</div>
+      <div class="text-grey">Add a new task to get started</div>
+    </div>
+
+    <!-- Task List -->
     <div class="q-mt-lg">
       <q-card v-for="todo in todos" :key="todo.id" class="q-mb-md">
-        <q-card-section class="row items-center">
-          <div class="col-6">
+        <q-card-section class="row items-center q-col-gutter-sm">
+          <!-- Task Checkbox -->
+          <div class="col-2 col-sm-1 flex items-center">
+            <q-checkbox
+              v-model="todo.completed"
+              @update:model-value="updateTaskStatus(todo)"
+              :disable="loading.update"
+            />
+          </div>
+
+          <!-- Task Title -->
+          <div class="col-10 col-sm-8 flex items-center">
             <div v-if="editingId === todo.id">
-              <q-input v-model="editingText" outlined dense />
+              <q-input
+              v-model="editingText"
+              outlined
+              dense
+              :loading="loading.update"
+              :disable="loading.update"
+              @keyup.enter="saveEdit(todo)"
+            />
             </div>
             <div v-else class="text-h6" :class="{ 'text-strike': todo.completed }">
               {{ todo.title }}
             </div>
           </div>
-          <div class="col-2">
-            <q-checkbox v-model="todo.completed" @update:model-value="updateTaskStatus(todo)" />
-          </div>
-          <div class="col-4 row justify-end">
+
+          <!-- Task Actions -->
+          <div class="col-12 col-sm-3 row justify-end q-gutter-sm q-mt-sm q-mt-sm-none items-center">
             <q-btn
               v-if="editingId === todo.id"
               flat
               color="positive"
               icon="save"
               @click="saveEdit(todo)"
-              class="q-mr-xs"
+              :loading="loading.update"
+              :disable="loading.update"
             />
             <q-btn
               v-else
@@ -50,31 +96,23 @@
               color="primary"
               icon="edit"
               @click="startEdit(todo)"
-              class="q-mr-xs"
+              :disable="loading.update"
             />
             <q-btn
               flat
               color="negative"
               icon="delete"
-              @click="deleteTask(todo.id)"
+              @click="deleteTaskId = (todo.id)"
+              :loading="loading.delete && deleteTaskId === todo.id"
+              :disable="loading.delete"
             />
           </div>
         </q-card-section>
       </q-card>
-
-      <div v-if="loading" class="text-center q-pa-md">
-        <q-spinner color="primary" size="3em" />
-        <div class="q-mt-sm">Loading tasks...</div>
-      </div>
-
-      <div v-if="!loading && todos.length === 0" class="text-center q-pa-md">
-        <q-icon name="task_alt" size="3em" color="grey-7" />
-        <div class="text-h6 q-mt-sm">No tasks found</div>
-        <div class="text-grey">Add a new task to get started</div>
-      </div>
     </div>
 
-    <q-dialog v-model="confirmDelete">
+    <!-- Delete Confirmation Dialog -->
+    <q-dialog v-model="showDeleteDialog">
       <q-card>
         <q-card-section class="row items-center">
           <q-avatar icon="warning" color="negative" text-color="white" />
@@ -82,208 +120,124 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="primary" v-close-popup />
-          <q-btn flat label="Delete" color="negative" @click="confirmDeleteTask" v-close-popup />
+          <q-btn
+            flat
+            label="Cancel"
+            color="primary"
+            @click="cancelDelete"
+            :disable="loading.delete"
+          />
+          <q-btn
+            flat
+            label="Delete"
+            color="negative"
+            @click="confirmDeleteTodo"
+            :loading="loading.delete"
+            :disable="loading.delete"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showNotification">
-      <q-card>
-        <q-card-section class="row items-center">
-          <q-avatar :icon="notificationIcon" :color="notificationColor" text-color="white" />
-          <span class="q-ml-sm">{{ notificationMessage }}</span>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="OK" color="primary" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <!-- Notifications -->
+    <q-notifications position="bottom-right" />
   </div>
 </template>
 
 <script>
-import { defineComponent, ref, onMounted } from 'vue'
-import axios from 'axios'
+import { defineComponent, onMounted, computed } from 'vue'
+import useTodo from '../composables/useTodo'
 
 export default defineComponent({
   name: 'TodoApp',
 
   setup() {
-    const API_URL = 'https://jsonplaceholder.typicode.com/todos'
-    const todos = ref([])
-    const newTask = ref('')
-    const loading = ref(true)
-    const editingId = ref(null)
-    const editingText = ref('')
-    const deleteTaskId = ref(null)
-    const confirmDelete = ref(false)
-    const showNotification = ref(false)
-    const notificationMessage = ref('')
-    const notificationIcon = ref('check')
-    const notificationColor = ref('positive')
+    const {
+      todos,
+      newTask,
+      loading,
+      error,
+      editingId,
+      editingText,
+      deleteTaskId,
+      fetchTodos,
+      addTodo,
+      startEdit,
+      saveEdit,
+      updateTodoStatus,
+      deleteTodo,
+      confirmDeleteTodo,
+      cancelDelete,
+      retryOperation,
+    } = useTodo()
 
-    // Function to show notification
-    const notify = (message, type = 'success') => {
-      notificationMessage.value = message
+    // Computed property for the delete dialog visibility
+    const showDeleteDialog = computed(() => deleteTaskId.value !== null)
 
-      if (type === 'success') {
-        notificationIcon.value = 'check'
-        notificationColor.value = 'positive'
-      } else if (type === 'error') {
-        notificationIcon.value = 'error'
-        notificationColor.value = 'negative'
-      } else if (type === 'info') {
-        notificationIcon.value = 'info'
-        notificationColor.value = 'info'
-      }
-
-      showNotification.value = true
-    }
-
-    // Fetch tasks from API
-    const fetchTasks = async () => {
-      loading.value = true
-      try {
-        // Limit to 10 tasks for better performance
-        const response = await axios.get(`${API_URL}?_limit=10`)
-        todos.value = response.data
-        notify('Tasks loaded successfully', 'info')
-      } catch (error) {
-        console.error('Error fetching tasks:', error)
-        notify('Failed to load tasks', 'error')
-      } finally {
-        loading.value = false
-      }
-    }
-
-    // Add a new task
+    // Function to handle adding a new task
     const addTask = async () => {
-      if (!newTask.value.trim()) return
-
       try {
-        const response = await axios.post(API_URL, {
-          title: newTask.value.trim(),
-          completed: false,
-          userId: 1 // Default user ID
-        })
-
-        // Since JSONPlaceholder doesn't actually save new posts,
-        // we'll add it to our local array with a unique ID
-        const newId = todos.value.length > 0 ?
-          Math.max(...todos.value.map(todo => todo.id)) + 1 : 1
-
-        todos.value.unshift({
-          ...response.data,
-          id: newId
-        })
-
-        newTask.value = ''
-        notify('Task added successfully')
-      } catch (error) {
-        console.error('Error adding task:', error)
-        notify('Failed to add task', 'error')
+        await addTodo()
+      } catch (err) {
+        // Error handled in the composable
+        console.error('Error adding task:', err)
       }
     }
 
-    // Start editing a task
-    const startEdit = (todo) => {
-      editingId.value = todo.id
-      editingText.value = todo.title
-    }
-
-    // Save edited task
-    const saveEdit = async (todo) => {
-      if (!editingText.value.trim()) return
-
-      try {
-        await axios.put(`${API_URL}/${todo.id}`, {
-          ...todo,
-          title: editingText.value.trim()
-        })
-
-        // Update the local todo
-        const index = todos.value.findIndex(t => t.id === todo.id)
-        if (index !== -1) {
-          todos.value[index].title = editingText.value.trim()
-        }
-
-        editingId.value = null
-        editingText.value = ''
-        notify('Task updated successfully')
-      } catch (error) {
-        console.error('Error updating task:', error)
-        notify('Failed to update task', 'error')
-      }
-    }
-
-    // Update task completion status
+    // Function to handle updating task status
     const updateTaskStatus = async (todo) => {
       try {
-        await axios.put(`${API_URL}/${todo.id}`, {
-          ...todo,
-          completed: todo.completed
-        })
-
-        notify(`Task marked as ${todo.completed ? 'completed' : 'incomplete'}`)
-      } catch (error) {
-        console.error('Error updating task status:', error)
-        notify('Failed to update task status', 'error')
-        // Revert the change in case of error
-        todo.completed = !todo.completed
+        await updateTodoStatus(todo)
+      } catch (err) {
+        // Error handled in the composable
+        console.error('Error updating task status:', err)
       }
     }
 
-    // Prompt for delete confirmation
-    const deleteTask = (id) => {
-      deleteTaskId.value = id
-      confirmDelete.value = true
-    }
-
-    // Confirm and delete task
-    const confirmDeleteTask = async () => {
-      try {
-        await axios.delete(`${API_URL}/${deleteTaskId.value}`)
-
-        // Remove from local array
-        todos.value = todos.value.filter(todo => todo.id !== deleteTaskId.value)
-
-        notify('Task deleted successfully')
-      } catch (error) {
-        console.error('Error deleting task:', error)
-        notify('Failed to delete task', 'error')
-      }
-    }
-
-    // Load tasks when component mounts
+    // Load tasks on component mount
     onMounted(() => {
-      fetchTasks()
+      fetchTodos()
     })
 
     return {
       todos,
       newTask,
       loading,
+      error,
       editingId,
       editingText,
-      confirmDelete,
-      showNotification,
-      notificationMessage,
-      notificationIcon,
-      notificationColor,
+      deleteTaskId,
+      showDeleteDialog,
       addTask,
       startEdit,
       saveEdit,
       updateTaskStatus,
-      deleteTask,
-      confirmDeleteTask
+      deleteTodo,
+      confirmDeleteTodo,
+      cancelDelete,
+      retryOperation
     }
   }
 })
 </script>
 
 <style scoped>
+.todo-app {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.input-container {
+  margin-top: auto;
+  padding-bottom: 0;
+}
+.input {
+  padding-bottom: 0;
+}
+.button {
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
 .text-strike {
   text-decoration: line-through;
   color: #9e9e9e;
